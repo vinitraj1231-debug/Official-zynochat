@@ -1,0 +1,21 @@
+{
+  "name": "Zynochat - E2EE Workspace",
+  "short_name": "Zynochat",
+  "description": "Ultra-secure real-time end-to-end encrypted messaging workspace hosted on elitehosting.in",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0c0e17",
+  "theme_color": "#8e98ff",
+  "icons": [
+    {
+      "src": "/images/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/images/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
