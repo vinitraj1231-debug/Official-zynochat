@@ -1,0 +1,18 @@
+{
+  "name": "zynochat",
+  "version": "1.0.0",
+  "description": "Ultra-secure E2EE real-time chatting platform for elitehosting.in",
+  "main": "server/server.js",
+  "scripts": {
+    "start": "node server/server.js",
+    "test": "node --test tests/server.test.js"
+  },
+  "keywords": ["chat", "e2ee", "security", "pwa", "websocket", "express"],
+  "author": "Zynochat Engineering",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.19.2",
+    "jsonwebtoken": "^9.0.2",
+    "ws": "^8.17.0"
+  }
+}
