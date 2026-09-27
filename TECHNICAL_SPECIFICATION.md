@@ -137,3 +137,53 @@ pm2 start server/server.js --name "zynochat" -i max
 pm2 save
 pm2 startup
 ```
+
+---
+
+## 4. Cloudflare Deployment Guide (Build & Deploy Commands)
+
+Depending on your architecture strategy, Zynochat can be deployed via Cloudflare in two ways:
+
+### Option A: Cloudflare Pages (Frontend Static App Shell) + VPS Backend
+Use this option if you want Cloudflare to host the static frontend app shell (`public/`), while your Linux VPS hosts the WebSocket & API backend (`server/server.js`).
+
+- **Framework preset**: `None` / `Static HTML`
+- **Build command**: `echo "No build step required for Vanilla HTML5/CSS3/JS"` (or leave empty)
+- **Build output directory**: `public`
+- **Root directory**: `/`
+
+#### Deployment via Wrangler CLI:
+```bash
+# Install Wrangler CLI
+npm install -g wrangler
+
+# Login to Cloudflare
+npx wrangler login
+
+# Deploy public frontend static assets to Cloudflare Pages
+npx wrangler pages deploy public --project-name=zynochat
+```
+
+---
+
+### Option B: Cloudflare Tunnel (Recommended for Full Express + WebSocket VPS Stack)
+Because Zynochat includes a dynamic Node.js Express server with Server-Side Rendering (SSR) and persistent stateful WebSocket connections (`ws`), running the full Node server on your Linux VPS behind a **Cloudflare Tunnel (`cloudflared`)** provides maximum protection against DDoS attacks without exposing open VPS ports to the public internet.
+
+#### Cloudflare Tunnel Setup Commands:
+```bash
+# 1. Install cloudflared daemon on Linux VPS
+curl -L --output cloudflared.deb https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+sudo dpkg -i cloudflared.deb
+
+# 2. Authenticate Cloudflare
+cloudflared tunnel login
+
+# 3. Create Tunnel for elitehosting.in
+cloudflared tunnel create zynochat-tunnel
+
+# 4. Route traffic from elitehosting.in to local PM2 server (Port 3000)
+cloudflared tunnel route dns zynochat-tunnel elitehosting.in
+
+# 5. Run Tunnel Daemon
+cloudflared tunnel run --url http://localhost:3000 zynochat-tunnel
+```
