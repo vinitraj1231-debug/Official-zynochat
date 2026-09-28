@@ -244,42 +244,109 @@ class ZynochatApp {
   }
 
   connectWebSocket() {
+    if (this.wsReconnectTimer) clearTimeout(this.wsReconnectTimer);
+    if (this.wsConnectTimeout) clearTimeout(this.wsConnectTimeout);
+
+    const params = new URLSearchParams(window.location.search);
+    const customWs = params.get('ws_url') || params.get('ws');
+
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/ws`;
+    const hostname = window.location.hostname || 'localhost';
+    const port = window.location.port;
+
+    // Build array of fallback URLs
+    const fallbackUrls = [];
+    if (customWs) {
+      fallbackUrls.push(customWs);
+    }
+    fallbackUrls.push(`${protocol}//${window.location.host}/ws`);
+
+    if (port !== '3000') {
+      fallbackUrls.push(`${protocol}//${hostname}:3000/ws`);
+    }
+    if (port !== '3099') {
+      fallbackUrls.push(`${protocol}//${hostname}:3099/ws`);
+    }
+
+    if (!this.wsAttemptIndex) this.wsAttemptIndex = 0;
+    const currentWsUrl = fallbackUrls[this.wsAttemptIndex % fallbackUrls.length];
 
     const statusEl = document.getElementById('connection-status');
-    statusEl.innerText = 'Connecting...';
-    statusEl.className = 'status-indicator status-connecting';
-
-    this.ws = new WebSocket(wsUrl);
-
-    this.ws.onopen = () => {
-      statusEl.innerText = '● Connected (E2EE)';
-      statusEl.className = 'status-indicator status-connected';
-
-      // Register client
-      this.ws.send(JSON.stringify({
-        type: 'REGISTER_CLIENT',
-        username: this.username,
-        isVip: this.isVip,
-        fingerprint: this.fingerprint
-      }));
-    };
-
-    this.ws.onmessage = async (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        await this.handleWSMessage(data);
-      } catch (e) {
-        console.error('WS parse error:', e);
-      }
-    };
-
-    this.ws.onclose = () => {
-      statusEl.innerText = 'Disconnected (Retrying)';
+    if (statusEl) {
+      statusEl.innerText = 'Connecting...';
       statusEl.className = 'status-indicator status-connecting';
-      setTimeout(() => this.connectWebSocket(), 3000);
-    };
+    }
+
+    try {
+      if (this.ws) {
+        this.ws.onopen = null;
+        this.ws.onmessage = null;
+        this.ws.onerror = null;
+        this.ws.onclose = null;
+        try { this.ws.close(); } catch (_) {}
+      }
+
+      this.ws = new WebSocket(currentWsUrl);
+
+      // Connection timeout safeguard (5s)
+      this.wsConnectTimeout = setTimeout(() => {
+        if (this.ws && this.ws.readyState !== WebSocket.OPEN) {
+          console.warn('[WS] Connection timeout on:', currentWsUrl);
+          try { this.ws.close(); } catch (_) {}
+        }
+      }, 5000);
+
+      this.ws.onopen = () => {
+        if (this.wsConnectTimeout) clearTimeout(this.wsConnectTimeout);
+        if (statusEl) {
+          statusEl.innerText = '● Connected (E2EE)';
+          statusEl.className = 'status-indicator status-connected';
+        }
+
+        // Register client
+        this.ws.send(JSON.stringify({
+          type: 'REGISTER_CLIENT',
+          username: this.username,
+          isVip: this.isVip,
+          fingerprint: this.fingerprint
+        }));
+      };
+
+      this.ws.onmessage = async (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          await this.handleWSMessage(data);
+        } catch (e) {
+          console.error('WS parse error:', e);
+        }
+      };
+
+      this.ws.onerror = (err) => {
+        console.error('[WS Error] Endpoint failed:', currentWsUrl, err);
+        if (statusEl) {
+          statusEl.innerText = 'Connection Error (Retrying...)';
+          statusEl.className = 'status-indicator status-connecting';
+        }
+      };
+
+      this.ws.onclose = () => {
+        if (this.wsConnectTimeout) clearTimeout(this.wsConnectTimeout);
+        if (statusEl) {
+          statusEl.innerText = 'Disconnected (Retrying)';
+          statusEl.className = 'status-indicator status-connecting';
+        }
+        this.wsAttemptIndex++;
+        this.wsReconnectTimer = setTimeout(() => this.connectWebSocket(), 3000);
+      };
+    } catch (err) {
+      console.error('[WS Init Exception]:', err);
+      if (statusEl) {
+        statusEl.innerText = 'Connection Error (Retrying...)';
+        statusEl.className = 'status-indicator status-connecting';
+      }
+      this.wsAttemptIndex++;
+      this.wsReconnectTimer = setTimeout(() => this.connectWebSocket(), 3000);
+    }
   }
 
   async handleWSMessage(data) {

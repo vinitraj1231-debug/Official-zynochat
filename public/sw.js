@@ -1,6 +1,7 @@
 const CACHE_NAME = 'zynochat-v1';
 const STATIC_ASSETS = [
   '/',
+  '/logo.png',
   '/css/style.css',
   '/js/app.js',
   '/manifest.json'
