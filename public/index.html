@@ -145,6 +145,9 @@
           <span class="chat-e2ee-tag">🔒 End-to-End Encrypted (AES-GCM 256)</span>
         </div>
         <div class="chat-actions">
+          <button id="share-room-btn" class="btn btn-share-room" title="Copy encrypted room link">
+            <span>🔗 Share Room</span>
+          </button>
           <label class="self-destruct-picker">
             ⏱️ Timer:
             <select id="self-destruct-select">
@@ -287,5 +290,8 @@
     </div>
   </div>
 
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container" class="toast-container"></div>
 </body>
 </html>

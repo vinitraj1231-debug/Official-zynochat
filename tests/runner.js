@@ -89,7 +89,16 @@ async function runTests() {
       ws.on('error', reject);
     });
 
-    console.log('\nALL 6 VERIFICATION TESTS PASSED SUCCESSFULLY! 🎉');
+
+    // Test 7: Room Parameter & Share Room Link UI elements
+    const res7 = await fetch(`http://localhost:${PORT}/?room=cyber-lounge`);
+    assert.strictEqual(res7.status, 200);
+    const html7 = await res7.text();
+    assert.ok(html7.includes("share-room-btn"));
+    assert.ok(html7.includes("toast-container"));
+    console.log("✓ Test 7 Passed: Room Parameter & Link Sharing UI Assets");
+
+    console.log('\nALL 7 VERIFICATION TESTS PASSED SUCCESSFULLY! 🎉');
   } catch (err) {
     console.error('TEST FAILED:', err);
     process.exitCode = 1;
