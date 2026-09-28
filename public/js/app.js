@@ -96,10 +96,134 @@ class ZynochatApp {
     this.isVip = false;
     this.fingerprint = this.generateHardwareFingerprint();
     this.activeTarget = null; // null for channel, userId for DM
+    this.activeRoom = this.getRoomFromURL();
 
     this.initUI();
     this.initCryptoAndWS();
     this.registerPWA();
+  }
+
+
+  getRoomFromURL() {
+    const params = new URLSearchParams(window.location.search);
+    const roomParam = params.get("room");
+    if (roomParam) return roomParam.trim();
+    if (window.location.hash && window.location.hash.length > 1) {
+      return window.location.hash.substring(1).trim();
+    }
+    return "global-secure";
+  }
+
+  setActiveRoom(roomName, updateURL = true) {
+    if (!roomName) return;
+    this.activeRoom = roomName;
+    this.activeTarget = null; // Reset DM target when joining channel
+
+    // Update active chat title
+    const titleEl = document.getElementById("active-chat-title");
+    if (titleEl) titleEl.innerText = `# ${roomName}`;
+
+    // Highlight matching channel in list if present
+    const channelItems = document.querySelectorAll("#channel-list .nav-item");
+    let found = false;
+    channelItems.forEach(item => {
+      const target = item.getAttribute("data-target") || item.querySelector(".channel-name")?.innerText;
+      if (target === roomName || item.getAttribute("data-target") === roomName) {
+        item.classList.add("active");
+        found = true;
+      } else {
+        item.classList.remove("active");
+      }
+    });
+
+    // If channel is not in the default list, dynamically add it
+    if (!found) {
+      this.addChannelToList(roomName, true);
+    }
+
+    // Update URL query string
+    if (updateURL) {
+      const newURL = new URL(window.location.href);
+      newURL.searchParams.set("room", roomName);
+      window.history.pushState({ room: roomName }, "", newURL.toString());
+    }
+  }
+
+  addChannelToList(roomName, setActive = false) {
+    const list = document.getElementById("channel-list");
+    if (!list) return;
+
+    // Check if already exists
+    const existing = Array.from(list.children).find(li => li.getAttribute("data-target") === roomName);
+    if (existing) {
+      if (setActive) {
+        Array.from(list.children).forEach(li => li.classList.remove("active"));
+        existing.classList.add("active");
+      }
+      return;
+    }
+
+    const li = document.createElement("li");
+    li.className = `nav-item ${setActive ? "active" : ""}`;
+    li.setAttribute("data-target", roomName);
+    li.innerHTML = `
+      <span class="channel-hashtag">#</span>
+      <span class="channel-name">${this.escapeHTML(roomName)}</span>
+      <span class="badge-count">Custom</span>
+    `;
+    li.addEventListener("click", () => {
+      this.setActiveRoom(roomName);
+      if (window.innerWidth <= 1023) {
+        document.querySelectorAll(".workspace-col").forEach(c => c.classList.remove("active-mobile-tab"));
+        document.getElementById("col-chat").classList.add("active-mobile-tab");
+      }
+    });
+    list.appendChild(li);
+  }
+
+
+  showToast(message, type = "info") {
+    const container = document.getElementById("toast-container");
+    if (!container) return;
+    const toast = document.createElement("div");
+    toast.className = `toast-item toast-${type}`;
+    toast.innerHTML = `<span>${this.escapeHTML(message)}</span>`;
+    container.appendChild(toast);
+    setTimeout(() => {
+      toast.classList.add("show");
+    }, 10);
+    setTimeout(() => {
+      toast.classList.remove("show");
+      setTimeout(() => toast.remove(), 300);
+    }, 3000);
+  }
+
+
+  fallbackCopyText(text, roomName) {
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    textArea.style.position = "fixed";
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    try {
+      document.execCommand("copy");
+      this.showToast(`🔗 Room link copied: #${roomName}`, "success");
+    } catch (err) {
+      this.showToast("Failed to copy link", "error");
+    }
+    document.body.removeChild(textArea);
+  }
+
+
+  formatMessageContent(text) {
+    const escaped = this.escapeHTML(text);
+    // Regex for URLs starting with http:// or https:// or www.
+    const urlRegex = /(https?:\/\/[^\s<]+|www\.[^\s<]+)/gi;
+    return escaped.replace(urlRegex, (url) => {
+      const href = url.startsWith("www.") ? "https://" + url : url;
+      return `<a href="${href}" target="_blank" rel="noopener noreferrer" class="chat-link">${url}</a>`;
+    });
   }
 
   generateHardwareFingerprint() {
@@ -188,6 +312,71 @@ class ZynochatApp {
   }
 
   initUI() {
+
+    // Add New Channel (+) Trigger
+    const newChannelBtn = document.getElementById("new-channel-btn");
+    if (newChannelBtn) {
+      newChannelBtn.addEventListener("click", () => {
+        const roomName = prompt("Enter new encrypted room name (e.g. cyber-security, dev-lounge):");
+        if (roomName && roomName.trim()) {
+          const cleanRoom = roomName.trim().toLowerCase().replace(/[^a-z0-9_-]/g, "-");
+          if (cleanRoom) {
+            this.setActiveRoom(cleanRoom);
+            this.showToast(`Joined room #${cleanRoom}`, "success");
+          }
+        }
+      });
+    }
+
+
+    // Share Room Link Trigger
+    const shareRoomBtn = document.getElementById("share-room-btn");
+    if (shareRoomBtn) {
+      shareRoomBtn.addEventListener("click", () => {
+        const roomName = this.activeRoom || "global-secure";
+        const url = new URL(window.location.origin + window.location.pathname);
+        url.searchParams.set("room", roomName);
+        const linkStr = url.toString();
+
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(linkStr).then(() => {
+            this.showToast(`🔗 Room link copied: #${roomName}`, "success");
+          }).catch(() => {
+            this.fallbackCopyText(linkStr, roomName);
+          });
+        } else {
+          this.fallbackCopyText(linkStr, roomName);
+        }
+      });
+    }
+
+
+    // Channel List click delegation
+    const channelList = document.getElementById("channel-list");
+    if (channelList) {
+      channelList.addEventListener("click", (e) => {
+        const item = e.target.closest(".nav-item");
+        if (!item) return;
+        const targetRoom = item.getAttribute("data-target") || item.querySelector(".channel-name")?.innerText.trim();
+        if (targetRoom) {
+          this.setActiveRoom(targetRoom);
+          if (window.innerWidth <= 1023) {
+            document.querySelectorAll(".workspace-col").forEach(c => c.classList.remove("active-mobile-tab"));
+            document.getElementById("col-chat").classList.add("active-mobile-tab");
+          }
+        }
+      });
+    }
+
+    // Initialize active room from URL
+    this.setActiveRoom(this.activeRoom, false);
+
+    // Browser navigation (back/forward) handling
+    window.addEventListener("popstate", () => {
+      const room = this.getRoomFromURL();
+      if (room) this.setActiveRoom(room, false);
+    });
+
     // Send Message Trigger
     const sendBtn = document.getElementById('send-msg-btn');
     const inputArea = document.getElementById('message-input');
@@ -371,7 +560,7 @@ class ZynochatApp {
 
     group.innerHTML = `
       <div class="msg-meta">${msg.senderName} ${msg.isVip ? '★' : ''} • ${timeStr}</div>
-      <div class="msg-content">${this.escapeHTML(msg.text)}</div>
+      <div class="msg-content">${this.formatMessageContent(msg.text)}</div>
     `;
 
     container.appendChild(group);
