@@ -1,8 +1,0 @@
-{
-  "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "official-zynochat",
-  "compatibility_date": "2026-09-26",
-  "assets": {
-    "directory": "public"
-  }
-}
