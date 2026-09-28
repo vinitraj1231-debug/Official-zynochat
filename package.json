@@ -5,9 +5,17 @@
   "main": "server/server.js",
   "scripts": {
     "start": "node server/server.js",
-    "test": "node --test tests/server.test.js"
+    "test": "node --test tests/server.test.js",
+    "build": "echo \"No build step required for static assets\""
   },
-  "keywords": ["chat", "e2ee", "security", "pwa", "websocket", "express"],
+  "keywords": [
+    "chat",
+    "e2ee",
+    "security",
+    "pwa",
+    "websocket",
+    "express"
+  ],
   "author": "Zynochat Engineering",
   "license": "MIT",
   "dependencies": {
